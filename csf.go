@@ -2,6 +2,7 @@ package csf
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -16,25 +17,32 @@ func Value(v any) string {
 	return fmt.Sprintf("%v", v)
 }
 
-// Array returns a Stringer conforming function which generates a seperated
-// string list from an array input. []string values are joined by the provided
-// separator directly, whereas other array value types are string formatted
-// using Value and then joined by the separator. If the input is not an array,
-// Value(v) is returned.
-func Array(sep string) Stringer {
+// unpackArray uses reflection to handle the input value as an array and returns
+// a slice of `any` values. This will unpack typed arrays, such as `[]string`,
+// into a slice of `any` values for use with a Stringer function.
+func unpackArray(a any) []any {
+	vo := reflect.ValueOf(a)
+	v := make([]any, vo.Len())
+	for i := 0; i < vo.Len(); i++ {
+		v[i] = vo.Index(i).Interface()
+	}
+	return v
+}
+
+// Array returns a Stringer conforming function which generates a sep seperated
+// string list as a string from an array input by passing each array item to the
+// provided Stringer for formatting.
+func Array(sep string, stringer Stringer) Stringer {
 	return func(v any) string {
-		switch t := v.(type) {
-		case []string:
-			return strings.Join(t, sep)
-		case []any:
-			parts := make([]string, len(t))
-			for i, item := range t {
-				parts[i] = Value(item)
+		uv := unpackArray(v)
+		strs := make([]string, 0, len(uv))
+		for _, item := range uv {
+			str := stringer(item)
+			if len(str) > 0 {
+				strs = append(strs, str)
 			}
-			return strings.Join(parts, sep)
-		default:
-			return Value(v)
 		}
+		return strings.Join(strs, sep)
 	}
 }
 

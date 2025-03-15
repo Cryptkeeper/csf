@@ -127,12 +127,48 @@ func Test_CustomFieldFormat(t *testing.T) {
 	}
 }
 
-func Test_ArrayFieldFormat(t *testing.T) {
+func Test_ArrayFieldStringsFormat(t *testing.T) {
 	st := NewTemplate(
-		F("a").Required().Formatter(Array(", ")),
+		F("a").Required().Formatter(Array(", ", Value)),
 	)
 	s, err := st.String(map[string]any{
 		"a": []string{"foo", "bar"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s != "foo, bar" {
+		t.Fatalf("expected 'foo, bar', got %q", s)
+	}
+}
+
+func Test_ArrayFieldIntsFormat(t *testing.T) {
+	st := NewTemplate(
+		F("a").Required().Formatter(Array(", ", Value)),
+	)
+	s, err := st.String(map[string]any{
+		"a": []int{10, 20},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s != "10, 20" {
+		t.Fatalf("expected '10, 20', got %q", s)
+	}
+}
+
+type messageStruct struct {
+	message string
+}
+
+func Test_ArrayFieldStructsFormat(t *testing.T) {
+	st := NewTemplate(
+		F("a").Required().Formatter(Array(", ", func(v any) string {
+			return v.(messageStruct).message
+		})),
+	)
+	s, err := st.String(map[string]any{
+		"a": []messageStruct{{"foo"}, {"bar"}},
 	})
 	if err != nil {
 		t.Fatal(err)
