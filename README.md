@@ -17,6 +17,9 @@ st := csf.NewTemplate(
         csf.F("preferred_name"),        // Preferred name has priority, but is optional
         csf.F("legal_name").Required(), // Required will generate error if neither is present
     ),
+    csf.F("company").Formatter(func(v any) string { // Only appears if set, otherwise whitespace collapses
+        return fmt.Sprintf("@ %s", v) // e.g. "ExampleCo" -> "@ ExampleCo"
+    }),
     csf.F("email").Formatter(func(v any) string { // Add email if present, but not required
         return fmt.Sprintf("<%s>", v) // Custom formatter to wrap email in angle brackets
     }),
@@ -31,7 +34,7 @@ fmt.Println(s)
 // Outputs `Author: Johnny Apple <john-smith@example.com>`
 ```
 
-Try editing the input map to remove various fields. When neither name is present, an error is generated. Providing `preferred_name` will always override `legal_name`. Note how removing the email will result in only the name returned, without any trailing whitespace or empty brackets.
+Try editing the input map to remove various fields. When neither name is present, an error is generated. Providing `preferred_name` will always override `legal_name`. Note how removing the email will result in only the name being returned (and without any trailing whitespace or empty brackets). Setting the `company` field will auto suffix the name with where the user works: `Author: Johnny Apple @ Microsoft <john-smith@example.com>`.
 
 ## Features
 
