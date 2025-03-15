@@ -31,6 +31,8 @@ fmt.Println(s)
 // Outputs `Author: Johnny Apple <john-smith@example.com>`
 ```
 
+Try editing the input map to remove various fields. When neither name is present, an error is generated. Providing `preferred_name` will always override `legal_name`. Note how remove the email will result in only the name returned, without any trailing whitespace or empty brackets.
+
 ## Features
 
 - Fields may be optional (e.g. `csf.F("email")`) or required (e.g. `csf.F("legal_name").Required()`). Required fields will generate an error when missing, whereas optional fields are simply ignored.
