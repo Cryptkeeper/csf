@@ -17,6 +17,14 @@ func Value(v any) string {
 	return fmt.Sprintf("%v", v)
 }
 
+// Const returns a Stringer conforming function that always returns the provided
+// string value.
+func Const(s string) Stringer {
+	return func(_ any) string {
+		return s
+	}
+}
+
 // unpackArray uses reflection to handle the input value as an array and returns
 // a slice of `any` values. This will unpack typed arrays, such as `[]string`,
 // into a slice of `any` values for use with a Stringer function.
@@ -43,14 +51,6 @@ func Array(sep string, stringer Stringer) Stringer {
 			}
 		}
 		return strings.Join(strs, sep)
-	}
-}
-
-// Const returns a Stringer conforming function that always returns the provided
-// string value.
-func Const(s string) Stringer {
-	return func(_ any) string {
-		return s
 	}
 }
 
@@ -99,7 +99,17 @@ func (f *Field) Default(v any) *Field {
 // allows for custom formatting logic to be applied to the field's value when
 // generating the string representation. If not set, the default Value function
 // is used to convert the value to a string.
+// Deprecated: Use Format
 func (f *Field) Formatter(fmt Stringer) *Field {
+	f.format = fmt
+	return f
+}
+
+// Format sets a custom Stringer function to format the field's value. This
+// allows for custom formatting logic to be applied to the field's value when
+// generating the string representation. If not set, the default Value function
+// is used to convert the value to a string.
+func (f *Field) Format(fmt Stringer) *Field {
 	f.format = fmt
 	return f
 }
