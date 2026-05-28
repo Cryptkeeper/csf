@@ -1,58 +1,111 @@
 # csf
 
-csf (context-based string formatting) is a utility library for generating templated strings using named key-value pairs provided by a map. I have most commonly used it when I have some "blob" of data (e.g. deserialized JSON) and I want to generate a human-facing string representation depending on the data included in the blob.
-
-## Example 
-
-```go
-input := map[string]any{ // usually from deserialized files or database
-    "legal_name":     "John Smith",
-    "preferred_name": "Johnny Apple",
-    "email":          "john-smith@example.com",
-}
-
-st := csf.NewTemplate(
-    csf.C("Author:"), // Constant string to add label
-    csf.First( // First will return the first non-empty value in the list
-        csf.F("preferred_name"),        // Preferred name has priority, but is optional
-        csf.F("legal_name").Required(), // Required will generate error if neither is present
-    ),
-    csf.F("company").Format(func(v any) string { // Only appears if set, otherwise whitespace collapses
-        return fmt.Sprintf("@ %s", v) // e.g. "ExampleCo" -> "@ ExampleCo"
-    }),
-    csf.F("email").Format(func(v any) string { // Add email if present, but not required
-        return fmt.Sprintf("<%s>", v) // Custom formatter to wrap email in angle brackets
-    }),
-)
-
-s, err := st.String(input)
-if err != nil {
-    panic(err) // handle error
-}
-fmt.Println(s)
-
-// Outputs `Author: Johnny Apple <john-smith@example.com>`
-```
-
-Try editing the input map to remove various fields. When neither name is present, an error is generated. Providing `preferred_name` will always override `legal_name`. Note how removing the email will result in only the name being returned (and without any trailing whitespace or empty brackets). Setting the `company` field will auto suffix the name with where the user works: `Author: Johnny Apple @ Microsoft <john-smith@example.com>`.
-
-## Features
-
-- Fields may be optional (e.g. `csf.F("email")`) or required (e.g. `csf.F("legal_name").Required()`). Required fields will generate an error when missing, whereas optional fields are simply ignored.
-- Custom format functions are supported for stringify various types of fields (e.g. `csf.F("email").Format(func(v any) string { ... })`). csf additionally provides a few basic ones (`csf.Value`, `csf.Array` and `csf.Const`) out of the box.
-- Conditional field logic can be implemented using `csf.First` to return the first non-empty value in the list. This is useful for providing a fallback value when the primary value is not present, or when fields have a mutually exclusive/overriding relationship.
-- Constants can be placed in the template using `csf.C("constant")`.
-
-## Motivation
-
-For better or worse I routinely find myself needing to generate human-readable strings from deserialized map blobs. Usually I reach for text/template, or a bunch of `if` statements and parsing code in a `String()` method. This library is an attempt to provide a more structured way to do this, particularly when the data comes in various "shapes" (i.e. variable field inclusion).
-
-## Limitations
-
-Is it fast? Not particularly, and I doubt any faster than the equivalent code rolled out. Is it type-safe? Not really. It is also "one shot" meaning you cannot progressively rewrite the string as you go. Don't expect this to replace "deeply" nested logic.
+csf (context-based string formatting) is a Go library for building human-readable strings from map data. Define a template of named fields, pass in a `map[string]any`, and csf assembles the output - automatically handling missing fields, fallback logic, and custom formatting.
 
 ## Installation
 
-`go get github.com/Cryptkeeper/csf`
+```
+go get github.com/Cryptkeeper/csf
+```
 
-See the example included above. For more examples, see the [test cases](csf_test.go).
+## Example
+
+```go
+st := csf.NewTemplate(
+    csf.C("Author:"),
+    csf.First(
+        csf.F("preferred_name"),
+        csf.F("legal_name").Required(),
+    ),
+    csf.F("company").Format(func(v any) string {
+        return fmt.Sprintf("@ %s", v)
+    }),
+    csf.F("email").Format(func(v any) string {
+        return fmt.Sprintf("<%s>", v)
+    }),
+)
+```
+
+The same template produces different output depending on which fields are present in the input:
+
+```go
+st.String(map[string]any{
+    "legal_name": "John Smith",
+    "email":      "john-smith@example.com",
+})
+// "Author: John Smith <john-smith@example.com>"
+
+st.String(map[string]any{
+    "legal_name":     "John Smith",
+    "preferred_name": "Johnny Apple",
+    "email":          "john-smith@example.com",
+})
+// "Author: Johnny Apple <john-smith@example.com>"
+
+st.String(map[string]any{
+    "preferred_name": "Johnny Apple",
+    "company":        "ExampleCo",
+    "email":          "john-smith@example.com",
+})
+// "Author: Johnny Apple @ ExampleCo <john-smith@example.com>"
+```
+
+Each field is evaluated against the input map, and non-empty results are joined with spaces. Optional fields that are missing or nil are silently omitted - no trailing spaces or empty brackets. `First` picks `preferred_name` when available, falling back to `legal_name`. Since `legal_name` is marked required, an error is returned when neither name is present.
+
+## Features
+
+- **Optional and required fields** - `csf.F("email")` is optional (omitted when missing), `csf.F("name").Required()` returns an error when missing.
+- **Default values** - `csf.F("role").Default("member")` provides a fallback when the key is absent or nil.
+- **Custom formatters** - `csf.F("tags").Format(csf.Array(", ", csf.Value))` controls how a field's value is stringified. Built-in stringers include `Value`, `Array`, and `Const`.
+- **Conditional selection** - `csf.First(fields...)` returns the first non-empty value, useful for fallbacks or mutually exclusive fields.
+- **Constants** - `csf.C("literal")` injects a fixed string into the template.
+- **Nesting** - Templates implement the `Eval` interface, so they can be composed within other templates.
+
+## Extending
+
+Both core interfaces - `Eval` and `Stringer` - are small enough to implement yourself. `Eval` is a single method (`String(map[string]any) (string, error)`), and `Stringer` is just `func(any) string`. This makes it straightforward to add behavior that the library doesn't provide out of the box.
+
+For example, a custom `Eval` that wraps a value in parentheses only when present:
+
+```go
+type Parenthesized struct {
+    field csf.Eval
+}
+
+func (p *Parenthesized) String(c map[string]any) (string, error) {
+    s, err := p.field.String(c)
+    if err != nil || s == "" {
+        return s, err
+    }
+    return "(" + s + ")", nil
+}
+
+// csf.NewTemplate(csf.F("name"), &Parenthesized{csf.F("nickname")})
+// with {"name": "John", "nickname": "Johnny"} -> "John (Johnny)"
+```
+
+Or a reusable `Stringer` that truncates long values:
+
+```go
+func Truncate(max int) csf.Stringer {
+    return func(v any) string {
+        s := csf.Value(v)
+        if len(s) > max {
+            return s[:max] + "..."
+        }
+        return s
+    }
+}
+
+// csf.F("bio").Format(Truncate(50))
+```
+
+## Motivation
+
+Generating human-readable strings from map data usually means reaching for `text/template` or writing a pile of `if` statements in a `String()` method. csf is a more declarative alternative for data that comes in variable shapes with optional field inclusion.
+
+## Limitations
+
+csf is not especially fast, not type-safe, and is "one shot" - you cannot progressively build the string. It is likely not a replacement for deeply nested formatting logic, but it may help.
+
+For more examples, see the [test cases](csf_test.go).
