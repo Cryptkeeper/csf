@@ -17,10 +17,10 @@ st := csf.NewTemplate(
         csf.F("preferred_name"),        // Preferred name has priority, but is optional
         csf.F("legal_name").Required(), // Required will generate error if neither is present
     ),
-    csf.F("company").Formatter(func(v any) string { // Only appears if set, otherwise whitespace collapses
+    csf.F("company").Format(func(v any) string { // Only appears if set, otherwise whitespace collapses
         return fmt.Sprintf("@ %s", v) // e.g. "ExampleCo" -> "@ ExampleCo"
     }),
-    csf.F("email").Formatter(func(v any) string { // Add email if present, but not required
+    csf.F("email").Format(func(v any) string { // Add email if present, but not required
         return fmt.Sprintf("<%s>", v) // Custom formatter to wrap email in angle brackets
     }),
 )
@@ -39,7 +39,7 @@ Try editing the input map to remove various fields. When neither name is present
 ## Features
 
 - Fields may be optional (e.g. `csf.F("email")`) or required (e.g. `csf.F("legal_name").Required()`). Required fields will generate an error when missing, whereas optional fields are simply ignored.
-- Custom format functions are supported for stringify various types of fields (e.g. `csf.F("email").Formatter(func(v any) string { ... })`). csf additionally provides a few basic ones (`csf.Value`, `csf.Array` and `csf.Const`) out of the box.
+- Custom format functions are supported for stringify various types of fields (e.g. `csf.F("email").Format(func(v any) string { ... })`). csf additionally provides a few basic ones (`csf.Value`, `csf.Array` and `csf.Const`) out of the box.
 - Conditional field logic can be implemented using `csf.First` to return the first non-empty value in the list. This is useful for providing a fallback value when the primary value is not present, or when fields have a mutually exclusive/overriding relationship.
 - Constants can be placed in the template using `csf.C("constant")`.
 
